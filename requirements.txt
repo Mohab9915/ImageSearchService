@@ -17,5 +17,6 @@ psycopg2-binary==2.9.9
 torch>=2.0.0
 transformers>=4.32.0
 sentencepiece>=0.1.99
+protobuf>=4.25.0
 pillow>=9.0.0
 numpy==1.26.0

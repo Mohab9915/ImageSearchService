@@ -24,6 +24,8 @@ m='google/siglip-base-patch16-224';\
 SiglipModel.from_pretrained(m); SiglipProcessor.from_pretrained(m);\
 print('siglip cached')"
 
+ENV HF_HUB_OFFLINE=1
+
 COPY . .
 
 RUN useradd --create-home --shell /bin/bash app \
