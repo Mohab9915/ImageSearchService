@@ -1,0 +1,21 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+fastapi==0.115.6
+uvicorn==0.32.1
+gunicorn==21.2.0
+python-multipart==0.0.20
+pydantic==2.10.4
+httpx>=0.28.1
+
+# The tenants table, read-only. Optional at runtime: without DATABASE_URL the
+# service still searches, and a bootstrap must carry its own credentials.
+SQLAlchemy==2.0.15
+psycopg2-binary==2.9.9
+
+# The embedding half. Pinned to CPU wheels -- this runs on a Railway box with
+# no GPU, and the CUDA builds are several gigabytes of image for nothing.
+torch>=2.0.0
+transformers>=4.32.0
+sentencepiece>=0.1.99
+pillow>=9.0.0
+numpy==1.26.0
