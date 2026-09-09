@@ -258,6 +258,7 @@ def index_products(
     explain: bool = False,
     default_currency: Optional[str] = None,
     locale: Optional[str] = None,
+    progress: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, int]:
 
     import torch
@@ -569,6 +570,8 @@ def index_products(
                                 f" colours={colours}" if colours else "")
 
                 count += 1
+                if progress is not None:
+                    progress["processed"] = count
                 in_flight.add(pool.submit(_download, product, wanted))
 
                 if PROGRESS_EVERY and count % PROGRESS_EVERY == 0:

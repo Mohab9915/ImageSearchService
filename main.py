@@ -7,6 +7,7 @@ that tenant has no collection at all.
     GET  /health
     GET  /tenants/{ai_tenant_id}              what collection, how many points
     POST /tenants/{ai_tenant_id}/bootstrap    index, if and only if unindexed
+    POST /tenants/{ai_tenant_id}/events/product   one product created/updated/deleted
     POST /search                              by image url, or an upload
     POST /search/text                         by phrase, same vectors
 """
@@ -20,9 +21,10 @@ from fastapi import (
     BackgroundTasks, Depends, FastAPI, File, Form, Header, HTTPException,
     Query, UploadFile,
 )
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 
-from imagesearch import bootstrap, embedding, qdrant, results
+from imagesearch import bootstrap, embedding, events, qdrant, results
 from imagesearch.config import (
     API_TOKEN, DEFAULT_LIMIT, DEFAULT_SCORE_THRESHOLD, MAX_UPLOAD_BYTES,
     QDRANT_URL, SIGLIP_MODEL,
@@ -42,7 +44,12 @@ app = FastAPI(title="Image Search Service", version="1.0.0")
 
 
 # ------------------------------------------------------------------- auth
-def require_token(authorization: Optional[str] = Header(None)) -> None:
+bearer_scheme = HTTPBearer(auto_error=False)
+
+
+def require_token(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
+) -> None:
     """Bearer token, when one is configured.
 
     Unset means open. That is fine on a private network and wrong on a public
@@ -50,7 +57,7 @@ def require_token(authorization: Optional[str] = Header(None)) -> None:
     """
     if not API_TOKEN:
         return
-    supplied = (authorization or "").removeprefix("Bearer ").strip()
+    supplied = credentials.credentials if credentials else ""
     if supplied != API_TOKEN:
         raise HTTPException(status_code=401, detail="Invalid or missing token")
 
@@ -89,6 +96,13 @@ class TextSearchRequest(BaseModel):
     # so the image threshold would return nothing.
     score_threshold: float = Field(0.0, ge=0.0, le=1.0)
     collapse_by_product: bool = True
+
+
+class ProductEvent(BaseModel):
+    action: str
+    channel_code: Optional[str] = None
+    locales: List[str] = Field(default_factory=list)
+    product: Dict[str, Any] = Field(default_factory=dict)
 
 
 class BootstrapRequest(BaseModel):
@@ -169,6 +183,16 @@ def tenant_bootstrap(
         "ai_tenant_id": ai_tenant_id,
         "detail": "indexing started; poll GET /tenants/{id} for progress",
     }
+
+
+@app.post("/tenants/{ai_tenant_id}/events/product", dependencies=[Depends(require_token)])
+def tenant_product_event(
+    ai_tenant_id: str,
+    body: ProductEvent,
+    x_imagesearch_idempotency_key: Optional[str] = Header(
+        None, alias="X-ImageSearch-Idempotency-Key"),
+) -> Dict[str, Any]:
+    return events.handle(ai_tenant_id, x_imagesearch_idempotency_key, body.action, body.product)
 
 
 def _search(

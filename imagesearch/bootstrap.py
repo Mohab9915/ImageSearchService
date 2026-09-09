@@ -88,7 +88,15 @@ def status(ai_tenant_id: str) -> Dict[str, Any]:
     """Everything a caller might want to know before searching."""
     res = resolve(ai_tenant_id)
     out = asdict(res)
-    out["running"] = _running.get(ai_tenant_id)
+
+    running = _running.get(ai_tenant_id)
+    if running:
+        running = dict(running)
+        total = running.get("total")
+        processed = running.get("processed", running.get("pulled", 0))
+        running["percent"] = round(100 * processed / total, 1) if total else None
+    out["running"] = running
+
     lock = qdrant.read_lock(ai_tenant_id)
     out["last_bootstrap"] = lock
     return out
@@ -188,20 +196,23 @@ def bootstrap_if_missing(
         from imagesearch.catalog import pull_products
         from imagesearch.indexer import index_products
 
-        _running[ai_tenant_id] = {"phase": "indexing", "collection": collection}
+        progress = {"phase": "indexing", "collection": collection,
+                    "pulled": 0, "processed": 0, "total": None}
+        _running[ai_tenant_id] = progress
         logger.info("[BOOTSTRAP] %s -> %s : pulling and embedding",
                     ai_tenant_id, collection)
 
         tenant = tenants.lookup(ai_tenant_id)
         stats = index_products(
             collection_name=collection,
-            products=pull_products(client),
+            products=pull_products(client, progress=progress),
             ai_tenant_id=ai_tenant_id,
             page_id=tenant.page_id if tenant else None,
             limit=limit,
             force_reindex=force,
             default_currency=currency,
             locale=locale,
+            progress=progress,
         )
 
         qdrant.list_collections(refresh=True)

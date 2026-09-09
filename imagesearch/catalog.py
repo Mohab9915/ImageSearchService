@@ -69,7 +69,10 @@ def _items(data: Any) -> List[Dict[str, Any]]:
     return items if isinstance(items, list) else []
 
 
-def pull_products(client: CatalogClient) -> Iterator[Dict[str, Any]]:
+def pull_products(
+    client: CatalogClient,
+    progress: Optional[Dict[str, Any]] = None,
+) -> Iterator[Dict[str, Any]]:
     """Stream every product, page by page.
 
     Sequential rather than concurrent: a bootstrap is a one-off, and the
@@ -110,12 +113,19 @@ def pull_products(client: CatalogClient) -> Iterator[Dict[str, Any]]:
                                page, attempt, MAX_RETRIES, e, wait_for)
                 time.sleep(wait_for)
 
+        if progress is not None and progress.get("total") is None and isinstance(data, dict):
+            catalog_total = (data.get("meta") or {}).get("total")
+            if isinstance(catalog_total, int):
+                progress["total"] = catalog_total
+
         items = _items(data)
         if not items:
             break
 
         for product in items:
             total += 1
+            if progress is not None:
+                progress["pulled"] = total
             yield product
 
         logger.info("[CATALOG] pulled page %d (%d products so far)", page, total)
