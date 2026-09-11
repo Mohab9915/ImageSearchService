@@ -46,6 +46,10 @@ DEFAULT_SCORE_THRESHOLD = float(os.environ.get("SEARCH_SCORE_THRESHOLD", "0.68")
 # Largest upload accepted on /search, in bytes.
 MAX_UPLOAD_BYTES = int(os.environ.get("MAX_UPLOAD_BYTES", str(12 * 1024 * 1024)))
 
+# Requests per minute, per bearer token (or client IP when unauthenticated).
+# 0 disables the limit. /health is never limited -- it's what Railway polls.
+RATE_LIMIT_PER_MINUTE = int(os.environ.get("RATE_LIMIT_PER_MINUTE", "60"))
+
 # ---------------------------------------------------------------- bootstrap
 # A bootstrap indexes a tenant that has no collection yet. It never touches a
 # tenant that already has one -- that catalog belongs to the chatbot's sync

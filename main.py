@@ -19,16 +19,18 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import (
     BackgroundTasks, Depends, FastAPI, File, Form, Header, HTTPException,
-    Query, UploadFile,
+    Query, Request, UploadFile,
 )
+from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 
 from imagesearch import bootstrap, embedding, events, qdrant, results
 from imagesearch.config import (
     API_TOKEN, DEFAULT_LIMIT, DEFAULT_SCORE_THRESHOLD, MAX_UPLOAD_BYTES,
-    QDRANT_URL, SIGLIP_MODEL,
+    QDRANT_URL, RATE_LIMIT_PER_MINUTE, SIGLIP_MODEL,
 )
+from imagesearch.ratelimit import RateLimiter
 
 logging.basicConfig(
     level=os.environ.get("LOG_LEVEL", "INFO"),
@@ -60,6 +62,25 @@ def require_token(
     supplied = credentials.credentials if credentials else ""
     if supplied != API_TOKEN:
         raise HTTPException(status_code=401, detail="Invalid or missing token")
+
+
+# ------------------------------------------------------------ rate limit
+_rate_limiter = RateLimiter(RATE_LIMIT_PER_MINUTE)
+
+
+@app.middleware("http")
+async def _rate_limit(request: Request, call_next):
+    if request.url.path == "/health":
+        return await call_next(request)
+    key = request.headers.get("authorization") or (
+        request.client.host if request.client else "unknown")
+    if not _rate_limiter.allow(key):
+        return JSONResponse(
+            status_code=429,
+            content={"detail": "Rate limit exceeded, try again shortly"},
+            headers={"Retry-After": "60"},
+        )
+    return await call_next(request)
 
 
 # ------------------------------------------------------------------ model
