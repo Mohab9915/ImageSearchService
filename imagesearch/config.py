@@ -43,6 +43,8 @@ PORT = int(os.environ.get("PORT", "8080"))
 DEFAULT_LIMIT = int(os.environ.get("SEARCH_LIMIT", "6"))
 DEFAULT_SCORE_THRESHOLD = float(os.environ.get("SEARCH_SCORE_THRESHOLD", "0.68"))
 
+SIMILAR_SCORE_THRESHOLD = float(os.environ.get("SIMILAR_SCORE_THRESHOLD", "0.3"))
+
 # Largest upload accepted on /search, in bytes.
 MAX_UPLOAD_BYTES = int(os.environ.get("MAX_UPLOAD_BYTES", str(12 * 1024 * 1024)))
 

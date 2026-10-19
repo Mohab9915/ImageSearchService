@@ -28,7 +28,7 @@ from pydantic import BaseModel, Field
 from imagesearch import bootstrap, embedding, events, qdrant, results
 from imagesearch.config import (
     API_TOKEN, DEFAULT_LIMIT, DEFAULT_SCORE_THRESHOLD, MAX_UPLOAD_BYTES,
-    QDRANT_URL, RATE_LIMIT_PER_MINUTE, SIGLIP_MODEL,
+    QDRANT_URL, RATE_LIMIT_PER_MINUTE, SIGLIP_MODEL, SIMILAR_SCORE_THRESHOLD,
 )
 from imagesearch.ratelimit import RateLimiter
 
@@ -107,6 +107,8 @@ class SearchRequest(BaseModel):
         True,
         description="One row per product rather than one per indexed picture",
     )
+    include_similar: bool = False
+    similar_threshold: float = Field(SIMILAR_SCORE_THRESHOLD, ge=0.0, le=1.0)
 
 
 class TextSearchRequest(BaseModel):
@@ -223,6 +225,7 @@ def _search(
     score_threshold: float,
     collapse: bool,
     what: str,
+    similar_threshold: Optional[float] = None,
 ) -> Dict[str, Any]:
     if vector is None:
         raise HTTPException(status_code=422, detail=f"Could not read {what}")
@@ -238,6 +241,19 @@ def _search(
                 "hint": f"POST /tenants/{ai_tenant_id}/bootstrap to index it",
             },
         )
+
+    if similar_threshold is not None:
+        raw = qdrant.search(res.collection, vector, limit * 8, similar_threshold)
+        rows = results.best_per_product(raw) if collapse else [results.to_row(m) for m in raw]
+        exact, similar = results.split_exact_similar(rows, score_threshold, limit)
+        return {
+            "ai_tenant_id": ai_tenant_id,
+            "collection": res.collection,
+            "count": len(exact),
+            "results": exact,
+            "similar_count": len(similar),
+            "similar": similar,
+        }
 
     # Ask for more than requested when collapsing: several of the hits will
     # be different pictures of one product and merge into a single row.
@@ -267,6 +283,7 @@ def search_by_image(body: SearchRequest) -> Dict[str, Any]:
         embedding.embed_image_url(body.image_url),
         body.limit, body.score_threshold, body.collapse_by_product,
         "the image at that url",
+        body.similar_threshold if body.include_similar else None,
     )
 
 
@@ -277,6 +294,8 @@ async def search_by_upload(
     limit: int = Form(DEFAULT_LIMIT),
     score_threshold: float = Form(DEFAULT_SCORE_THRESHOLD),
     collapse_by_product: bool = Form(True),
+    include_similar: bool = Form(False),
+    similar_threshold: float = Form(SIMILAR_SCORE_THRESHOLD),
 ) -> Dict[str, Any]:
     """Same search, for a photograph sent straight to us."""
     data = await file.read(MAX_UPLOAD_BYTES + 1)
@@ -290,6 +309,7 @@ async def search_by_upload(
         ai_tenant_id, embedding.embed_image_bytes(data),
         max(1, min(limit, 50)), score_threshold, collapse_by_product,
         "the uploaded image",
+        similar_threshold if include_similar else None,
     )
 
 
