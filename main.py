@@ -107,7 +107,7 @@ class SearchRequest(BaseModel):
         True,
         description="One row per product rather than one per indexed picture",
     )
-    include_similar: bool = False
+    include_similar: bool = True
     similar_threshold: float = Field(SIMILAR_SCORE_THRESHOLD, ge=0.0, le=1.0)
 
 
@@ -294,7 +294,7 @@ async def search_by_upload(
     limit: int = Form(DEFAULT_LIMIT),
     score_threshold: float = Form(DEFAULT_SCORE_THRESHOLD),
     collapse_by_product: bool = Form(True),
-    include_similar: bool = Form(False),
+    include_similar: bool = Form(True),
     similar_threshold: float = Form(SIMILAR_SCORE_THRESHOLD),
 ) -> Dict[str, Any]:
     """Same search, for a photograph sent straight to us."""
