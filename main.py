@@ -86,12 +86,7 @@ async def _rate_limit(request: Request, call_next):
 # ------------------------------------------------------------------ model
 @app.on_event("startup")
 def _warmup() -> None:
-    """Load the model before the first request.
 
-    Off by default: on Railway the health check has to pass before traffic is
-    routed, and loading SigLIP takes longer than the check allows. Set
-    WARMUP_ON_START=true where the platform is patient.
-    """
     if os.environ.get("WARMUP_ON_START", "false").strip().lower() in ("1", "true", "yes"):
         import threading
         threading.Thread(target=embedding.warmup_model, daemon=True).start()
