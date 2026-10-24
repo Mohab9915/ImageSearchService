@@ -239,15 +239,12 @@ def _search(
 
     if similar_threshold is not None:
         raw = qdrant.search(res.collection, vector, limit * 8, similar_threshold)
-        rows = results.best_per_product(raw) if collapse else [results.to_row(m) for m in raw]
-        exact, similar = results.split_exact_similar(rows, score_threshold, limit)
+        rows = results.best_per_product(raw, limit) if collapse else [results.to_row(m) for m in raw][:limit]
         return {
             "ai_tenant_id": ai_tenant_id,
             "collection": res.collection,
-            "count": len(exact),
-            "results": exact,
-            "similar_count": len(similar),
-            "similar": similar,
+            "count": len(rows),
+            "results": rows,
         }
 
     # Ask for more than requested when collapsing: several of the hits will

@@ -80,10 +80,3 @@ def best_per_product(
 
     rows = sorted((best[k] for k in order), key=lambda r: -r["score"])
     return rows[:limit] if limit else rows
-
-
-def split_exact_similar(rows, threshold, limit=None):
-    exact = [r for r in rows if r["score"] >= threshold]
-    exact_skus = {r["sku"] for r in exact}
-    similar = [r for r in rows if r["score"] < threshold and r["sku"] not in exact_skus]
-    return exact[:limit], similar[:limit]

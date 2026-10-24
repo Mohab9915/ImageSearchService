@@ -102,37 +102,6 @@ def main() -> int:
     check("no colour", rows[0]["colour"], None)
     check("no other colours", rows[0]["other_colours"], [])
 
-    print("\nExact and similar split")
-    rows = results.best_per_product([
-        hit("DRESS-1", 0.86, "red"), hit("DRESS-2", 0.62, "blue"),
-        hit("DRESS-3", 0.55, "red"), hit("DRESS-1", 0.60, "black"),
-    ])
-    exact, similar = results.split_exact_similar(rows, 0.68)
-    check("exact", [r["sku"] for r in exact], ["DRESS-1"])
-    check("similar", [r["sku"] for r in similar], ["DRESS-2", "DRESS-3"])
-
-    print("\nExact product not repeated in similar")
-    rows = [results.to_row(m) for m in [
-        hit("DRESS-1", 0.86, "red"), hit("DRESS-1", 0.60, "black"),
-        hit("DRESS-2", 0.62, "blue"),
-    ]]
-    exact, similar = results.split_exact_similar(rows, 0.68)
-    check("similar", [r["sku"] for r in similar], ["DRESS-2"])
-
-    print("\nLimit per list")
-    rows = results.best_per_product(
-        [hit(f"P-{i}", 0.9 - i * 0.02) for i in range(4)]
-        + [hit(f"Q-{i}", 0.6 - i * 0.02) for i in range(4)])
-    exact, similar = results.split_exact_similar(rows, 0.68, limit=2)
-    check("two exact", len(exact), 2)
-    check("two similar", len(similar), 2)
-
-    print("\nNo exact match")
-    exact, similar = results.split_exact_similar(
-        results.best_per_product([hit("Q-1", 0.6)]), 0.68)
-    check("exact is empty", exact, [])
-    check("one similar", len(similar), 1)
-
     print()
     if FAILURES:
         print(f"{len(FAILURES)} FAILED: {FAILURES}")
