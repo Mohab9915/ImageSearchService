@@ -44,6 +44,9 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 
 app = FastAPI(title="Image Search Service", version="1.0.0")
 
+from functional_checks import install_checks
+install_checks(app)
+
 
 # ------------------------------------------------------------------- auth
 bearer_scheme = HTTPBearer(auto_error=False)
