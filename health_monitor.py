@@ -1,6 +1,7 @@
 """Authenticated, coalesced functional checks; results never include credentials."""
 import asyncio
 import hmac
+import logging
 import os
 import time
 from datetime import datetime, timezone
@@ -34,7 +35,12 @@ def install(app, checks):
             try:
                 await asyncio.wait_for(probe(), timeout=90)
                 return name, True
-            except Exception:
+            except Exception as error:
+                response = getattr(error, "response", None)
+                code = (response.get("Error", {}).get("Code") if isinstance(response, dict)
+                        else getattr(response, "status_code", None)) or getattr(error, "code", None)
+                logging.getLogger(__name__).warning("Functional check %s failed: %s (%s)",
+                                                    name, type(error).__name__, code or "no code")
                 return name, False
         results = dict(await asyncio.gather(*(check(n, p) for n, p in checks.items())))
         results["recent_requests"] = time.monotonic() >= app.state.functional_failure_until
