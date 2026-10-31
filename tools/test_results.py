@@ -41,7 +41,22 @@ def hit(sku, score, colour=None, **extra):
     return {"score": score, "payload": payload}
 
 
+def categorised_hit(sku, score, category):
+    return hit(sku, score, raw_product={"categories": [{"id": category}]})
+
+
 def main() -> int:
+    print("Similar results stay in the top match's product category")
+    matches = results.same_category_as_first([
+        categorised_hit("DRESS-1", 0.8, 10),
+        categorised_hit("DRESS-2", 0.7, 10),
+        categorised_hit("IRON-3", 0.6, 20),
+    ])
+    check("cross-category result removed", [m["payload"]["sku"] for m in matches],
+          ["DRESS-1", "DRESS-2"])
+    check("missing category metadata preserves results",
+          len(results.same_category_as_first([hit("A-1", 0.8), hit("B-2", 0.7)])), 2)
+
     print("One row per product")
     rows = results.best_per_product([
         hit("CONFIGURABLE-7875", 0.91, "أسود"),

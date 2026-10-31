@@ -12,6 +12,28 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional
 
 
+def _categories(match: Dict[str, Any]) -> set:
+    product = (match.get("payload") or {}).get("raw_product") or {}
+    categories = product.get("categories") or product.get("category") or []
+    if not isinstance(categories, list):
+        categories = [categories]
+    return {
+        str(category.get("id") or category.get("name") or category)
+        if isinstance(category, dict) else str(category)
+        for category in categories
+        if category
+    }
+
+
+def same_category_as_first(matches: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Keep visually similar results without crossing catalog categories."""
+    if not matches:
+        return matches
+    categories = _categories(matches[0])
+    return ([match for match in matches if categories & _categories(match)]
+            if categories else matches)
+
+
 def to_row(match: Dict[str, Any]) -> Dict[str, Any]:
     p = match.get("payload") or {}
     return {

@@ -239,6 +239,7 @@ def _search(
 
     if similar_threshold is not None:
         raw = qdrant.search(res.collection, vector, limit * 8, similar_threshold)
+        raw = results.same_category_as_first(raw)
         rows = results.best_per_product(raw, limit) if collapse else [results.to_row(m) for m in raw][:limit]
         return {
             "ai_tenant_id": ai_tenant_id,
