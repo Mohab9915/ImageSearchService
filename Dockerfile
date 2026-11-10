@@ -2,11 +2,9 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# libgomp1 is torch's OpenMP runtime; libpq for psycopg2. Nothing else is
-# needed -- there is no OpenCV, no zbar and no ffmpeg here, which is most of
-# why this image is a fraction of the chatbot's.
+# libgomp1 is torch's OpenMP runtime. curl is used by the healthcheck.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        gcc g++ libpq-dev libgomp1 curl \
+        libgomp1 curl \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
@@ -16,6 +14,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 # the first customer to send a photograph waits for a 400MB download; baking
 # them also means a Hugging Face outage cannot stop a deploy from serving.
 ENV HF_HOME=/opt/hf
+RUN useradd --create-home --shell /bin/bash app \
+    && install -d -o app -g app /opt/hf /app
+
+USER app
 RUN python -c "\
 from transformers.models.auto.tokenization_auto import TOKENIZER_MAPPING_NAMES as T;\
 T.setdefault('siglip', 'SiglipTokenizer');\
@@ -26,11 +28,7 @@ print('siglip cached')"
 
 ENV HF_HUB_OFFLINE=1
 
-COPY . .
-
-RUN useradd --create-home --shell /bin/bash app \
-    && chown -R app:app /app /opt/hf
-USER app
+COPY --chown=app:app . .
 
 EXPOSE 8080
 
