@@ -12,6 +12,7 @@ the wrong products.
 from __future__ import annotations
 
 import logging
+import threading
 from io import BytesIO
 from typing import Optional
 
@@ -19,17 +20,25 @@ import httpx
 
 from imagesearch.config import SIGLIP_MODEL
 
+MAX_IMAGE_PIXELS = 40_000_000
+
 logger = logging.getLogger(__name__)
 
 _model = None
 _processor = None
+_model_lock = threading.Lock()
 
 
 def get_embedding_model():
     """The SigLIP model and processor, loaded once per process."""
     global _model, _processor
 
-    if _model is None:
+    if _model is not None and _processor is not None:
+        return _model, _processor
+
+    with _model_lock:
+        if _model is not None and _processor is not None:
+            return _model, _processor
         try:
             # transformers has shipped releases where siglip has no tokenizer
             # registered, which makes SiglipProcessor.from_pretrained fail on
@@ -44,9 +53,10 @@ def get_embedding_model():
             from transformers import SiglipModel, SiglipProcessor
 
             logger.info("[SigLIP] Loading %s ...", SIGLIP_MODEL)
-            _model = SiglipModel.from_pretrained(SIGLIP_MODEL)
-            _processor = SiglipProcessor.from_pretrained(SIGLIP_MODEL)
-            _model.eval()
+            model = SiglipModel.from_pretrained(SIGLIP_MODEL)
+            processor = SiglipProcessor.from_pretrained(SIGLIP_MODEL)
+            model.eval()
+            _model, _processor = model, processor
             logger.info("[SigLIP] Model loaded")
         except Exception as e:
             logger.error("[SigLIP] Failed to load model: %s", e)
@@ -107,7 +117,13 @@ def embed_image_bytes(data: bytes) -> Optional[list]:
     from PIL import Image
 
     try:
-        img = Image.open(BytesIO(data)).convert("RGB")
+        img = Image.open(BytesIO(data))
+        # A 160KB PNG can declare 13000x13000 and decode to 500MB+ of RGB.
+        # PIL only warns below ~179MP, so cap it here; 4K photos are ~12MP.
+        if img.width * img.height > MAX_IMAGE_PIXELS:
+            logger.warning("[SigLIP] Refusing %dx%d image", img.width, img.height)
+            return None
+        img = img.convert("RGB")
     except Exception as e:
         logger.warning("[SigLIP] Cannot decode image bytes: %s", e)
         return None

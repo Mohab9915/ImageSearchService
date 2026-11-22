@@ -15,6 +15,8 @@ from __future__ import annotations
 
 import logging
 import os
+import hmac
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import (
@@ -24,8 +26,9 @@ from fastapi import (
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
+from starlette.concurrency import run_in_threadpool
 
-from imagesearch import bootstrap, embedding, events, qdrant, results
+from imagesearch import bootstrap, embedding, events, qdrant, results, tenants
 from imagesearch.config import (
     API_TOKEN, DEFAULT_LIMIT, DEFAULT_SCORE_THRESHOLD, MAX_UPLOAD_BYTES,
     QDRANT_URL, RATE_LIMIT_PER_MINUTE, SIGLIP_MODEL, SIMILAR_SCORE_THRESHOLD,
@@ -154,6 +157,30 @@ def health() -> Dict[str, Any]:
         "model_loaded": embedding._model is not None,
         "auth_required": bool(API_TOKEN),
     }
+
+
+@app.get("/health/functional")
+def functional_health(x_status_token: str = Header(default="")) -> JSONResponse:
+    expected = os.environ.get("STATUS_CHECK_TOKEN", "")
+    if not expected or not hmac.compare_digest(x_status_token, expected):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    checks = {"image_and_text_search": bool(qdrant.list_collections(refresh=True)),
+              "tenant_database": False}
+    engine = tenants._get_engine()
+    if engine is not None:
+        from sqlalchemy import text
+        try:
+            with engine.connect() as connection:
+                connection.execute(text("SELECT 1"))
+            checks["tenant_database"] = True
+        except Exception:
+            logger.warning("Functional tenant database check failed", exc_info=True)
+    status = "operational" if all(checks.values()) else "degraded"
+    return JSONResponse({"status": status, "checks": checks,
+                         "checkedAt": datetime.now(timezone.utc).isoformat()},
+                        status_code=200 if status == "operational" else 503,
+                        headers={"Cache-Control": "no-store"})
 
 
 @app.get("/tenants/{ai_tenant_id}", dependencies=[Depends(require_token)])
@@ -298,12 +325,12 @@ async def search_by_upload(
     if not data:
         raise HTTPException(status_code=422, detail="Empty upload")
 
-    return _search(
+    return await run_in_threadpool(lambda: _search(
         ai_tenant_id, embedding.embed_image_bytes(data),
         max(1, min(limit, 50)), score_threshold, collapse_by_product,
         "the uploaded image",
         similar_threshold if include_similar else None,
-    )
+    ))
 
 
 @app.post("/search/text", dependencies=[Depends(require_token)])

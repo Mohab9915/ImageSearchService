@@ -84,7 +84,10 @@ def collection_for_tenant(ai_tenant_id: str, refresh: bool = False) -> Optional[
             plain = name
         elif name.startswith(prefix + "_"):
             suffix = name[len(prefix) + 1:]
-            if suffix.isdigit():
+            # A rebuild stamp is unix seconds (10 digits). A short number is
+            # another tenant: `tn_2` + `_3` is tenant tn_2_3, not a rebuild.
+            # ponytail: assumes tenant ids never end in a 9+ digit segment.
+            if suffix.isdigit() and len(suffix) >= 9:
                 stamped.append((int(suffix), name))
 
     if stamped:

@@ -129,7 +129,7 @@ def run(stub, **kwargs):
             return True
 
     fake_catalog.CatalogClient = FakeClient
-    fake_catalog.pull_products = lambda client: iter([{"sku": "A", "id": 1}])
+    fake_catalog.pull_products = lambda client, progress=None: iter([{"sku": "A", "id": 1}])
 
     real = {k: sys.modules.get(k) for k in ("imagesearch.indexer", "imagesearch.catalog")}
     sys.modules["imagesearch.indexer"] = fake_indexer
